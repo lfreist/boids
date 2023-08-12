@@ -15,7 +15,6 @@
 
 int main(int argc, char **argv) {
     SDL_SetMainReady();
-    SDL_Init(SDL_INIT_VIDEO);
 
     BoidsSimulation simulation;
 
@@ -41,7 +40,7 @@ int main(int argc, char **argv) {
         fw.draw();
         auto end = std::chrono::high_resolution_clock::now();
         FPS = 1000 / std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-        std::cout << FPS << std::endl;
+        // std::cout << FPS << std::endl;
     }
 
     return 1;

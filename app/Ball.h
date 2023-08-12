@@ -10,8 +10,11 @@ struct Velocity {
     float y;
 };
 
+class Grid;
+
 class Ball {
     friend class BoidsSimulation;
+    friend class Grid;
 public:
     Ball(Position position, int radius, Velocity velocity = {0.0, 0.0}) :
             _position(position),

@@ -28,7 +28,7 @@ public:
     }
 
     void update() {
-        _sim->updateBoids();
+        _sim->update();
     }
 
     void draw() {

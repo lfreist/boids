@@ -8,6 +8,7 @@
 #include <cmath>
 
 #include "Ball.h"
+#include "grid.h"
 
 class BoidsSimulation {
 public:
@@ -22,37 +23,44 @@ public:
         int bottom = 600;
         int left = 200;
         int right = 1000;
+
+        [[nodiscard]] int height() const { return bottom - top; }
+        int width() const { return right - left; }
     };
 
-    BoidsSimulation() = default;
+    BoidsSimulation() : _grid(_space.width(), _space.height(), 50) {};
 
     void add_boid(Ball boid) {
         _particles.push_back(boid);
     }
 
     void update() {
+        _grid.update(_particles);
         updateBoids();
     }
 
     void updateBoids() {
-        for (auto& boid : _particles) {
+        for (auto* boid : _grid.get_at_border()) {
             switch (_border) {
                 case Border::REFLECTIVE:
-                    reflection(boid);
+                    reflection(*boid);
                     break;
                 case Border::TOROIDAL:
-                    toroid(boid);
+                    toroid(*boid);
                     break;
                 case Border::RESET:
-                    reset(boid);
+                    reset(*boid);
                     break;
                 default:
-                    reflection(boid);
+                    reflection(*boid);
                     break;
             }
-            auto sep = separate(boid);
-            auto ali = align(boid);
-            auto coh = cohere(boid);
+        }
+        for (auto& boid : _particles) {
+            auto neighbors = _grid.get_neighbors(boid);
+            auto sep = separate(boid, _particles);
+            auto ali = align(boid, _particles);
+            auto coh = cohere(boid, _particles);
 
             Velocity acc {sep.x + ali.x + coh.x, sep.y + ali.y + coh.y};
 
@@ -71,10 +79,10 @@ public:
         }
     }
 
-    Velocity separate(Ball& boid) {
+    Velocity separate(Ball& boid, std::vector<Ball>& /*std::set<Ball*>*/ neigbors) const {
         Velocity steer{0, 0};
         int count = 0;
-        for (auto& other : _particles) {
+        for (const auto& other : neigbors) {
             float distance = compute_dist(boid._position, other._position);
             if (distance > 0 && distance < _separation_radius) {
                 auto dx = static_cast<float>(boid._position.x - other._position.x);
@@ -99,10 +107,10 @@ public:
         return steer;
     }
 
-    Velocity align(const Ball& boid) {
+    Velocity align(const Ball& boid, std::vector<Ball>& /*std::set<Ball*>*/ neigbors) const {
         Velocity average{0, 0};
         int count = 0;
-        for (auto& other : _particles) {
+        for (const auto& other : neigbors) {
             double distance = compute_dist(boid._position, other._position);
             if (distance > 0 && distance < _alignment_radius) {
                 average.x += other._velocity.x;
@@ -122,12 +130,12 @@ public:
         return average;
     }
 
-    Velocity cohere(const Ball& boid) {
+    Velocity cohere(const Ball& boid, std::vector<Ball>& /*std::set<Ball*>*/ neigbors) const {
         Velocity center{0, 0};
         Velocity steer{0, 0};
         int count = 0;
 
-        for (auto& other : _particles) {
+        for (const auto& other : neigbors) {
             double distance = compute_dist(boid._position, other._position);
             if (distance > 0 && distance < _cohesion_radius) {
                 center.x += static_cast<float>(other._position.x);
@@ -156,6 +164,7 @@ public:
     }
 
     void draw(SDL_Renderer* renderer) {
+        _grid.draw(renderer);
         for (const auto& boid : _particles) {
             boid.draw(renderer);
         }
@@ -211,4 +220,6 @@ private:
 
     Space _space{};
     Border _border{Border::REFLECTIVE};
+
+    Grid _grid;
 };
