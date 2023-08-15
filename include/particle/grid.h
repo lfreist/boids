@@ -4,22 +4,27 @@
 
 #pragma once
 
-#include <vector>
+#include <chrono>
+#include <iostream>
 #include <map>
+#include <particle/particle.h>
 #include <set>
-#include "Ball.h"
+#include <vector>
 
-
+template <CL_VALID_TYPE T>
 class Grid {
+  friend class BoidsSimulation;
 public:
-    Grid(size_t width, size_t height, size_t grid_size) : _x_size(width / grid_size), _y_size(height / grid_size), _grid_size(grid_size) {
-        _grid.resize(_x_size, std::vector<std::vector<Ball*>>(_y_size));
+    Grid(size_t width, size_t height, size_t grid_size) : _x_size(width / grid_size), _y_size(height / grid_size), _grid_size(grid_size), _grid(_x_size) {
+      for (auto& row : _grid) {
+        row.resize(_y_size);
+      }
     }
 
     void draw(SDL_Renderer* renderer) {
         int x = 0;
         int y = 0;
-        SDL_SetRenderDrawColor(renderer, 100, 100, 100, 100);
+        SDL_SetRenderDrawColor(renderer, 30, 30, 30, 10);
         for (int i = 0; i <= _x_size; ++i) {
             SDL_RenderDrawLine(renderer, x, 0, x, _grid_size * _y_size);
             x += _grid_size;
@@ -30,27 +35,27 @@ public:
         }
     }
 
-    void update(std::vector<Ball>& particles) {
+    void update(const Particles<T>& particles) {
         for (auto& row : _grid) {
             for (auto& col : row) {
                 col.clear();
             }
         }
-        for (auto& p : particles) {
-            size_t cell_x = p._position.x / _grid_size;
-            size_t cell_y = p._position.y / _grid_size;
+        for (size_t i = 0; i < particles.size(); ++i) {
+            size_t cell_x = particles._position[i].x / _grid_size;
+            size_t cell_y = particles._position[i].y / _grid_size;
             if (cell_x >= _grid.size()) {
                 cell_x = _grid.size() -1;
             }
             if (cell_y >= _grid[cell_x].size()) {
                 cell_y = _grid[cell_x].size() -1;
             }
-            _grid[cell_x][cell_y].push_back(&p);
+            _grid[cell_x][cell_y].push_back(i);
         }
     }
 
-    [[nodiscard]] std::set<Ball*> get_at_border() const {
-        std::set<Ball*> res;
+    [[nodiscard]] std::set<size_t> get_at_border() const {
+        std::set<size_t> res;
         // top
         for (const auto & i : _grid.front()) {
             res.insert(i.begin(), i.end());
@@ -69,25 +74,20 @@ public:
         return res;
     }
 
-    [[nodiscard]] std::set<Ball*> get_neighbors(const Ball& boid) const {
-        std::set<Ball*> neighbors;
-        int x = boid._position.x / _grid_size;
-        int y = boid._position.y / _grid_size;
-        for (int dx = -1; dx <= 1; ++dx) {
-            for (int dy = -1; dy <= 1; ++dy) {
-                int n_x = x + dx;
-                int n_y = y + dy;
-                if (n_x >= 0 && n_x < _x_size && n_y >= 0 && n_y < _y_size) {
-                    neighbors.insert(_grid[n_x][n_y].begin(), _grid[n_x][n_y].end());
-                }
-            }
-        }
-        return neighbors;
+    [[nodiscard]] size_t grid_size() const {
+        return _grid_size;
+    }
+
+    [[nodiscard]] size_t x_size() const { return _x_size; }
+    [[nodiscard]] size_t y_size() const { return _y_size; }
+
+    std::vector<std::vector<T>>& operator[](size_t index) {
+        return _grid[index];
     }
 
 private:
     size_t _grid_size;
     size_t _x_size;
     size_t _y_size;
-    std::vector<std::vector<std::vector<Ball*>>> _grid;
+    std::vector<std::vector<std::vector<size_t>>> _grid;
 };

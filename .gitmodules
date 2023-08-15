@@ -1,3 +1,6 @@
 [submodule "external/SDL2"]
 	path = external/SDL2
 	url = https://github.com/libsdl-org/SDL.git
+[submodule "external/miss-ocl"]
+	path = external/miss-ocl
+	url = https://github.com/lfreist/miss-ocl

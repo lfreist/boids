@@ -14,13 +14,16 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
-#include_directories(include)
+include_directories(include)
 
 
 add_subdirectory(external/SDL2)
 include_directories(external/SDL2/include)
 
-#add_subdirectory(src)
+add_subdirectory(external/miss-ocl)
+include_directories(external/miss-ocl/include)
+
+add_subdirectory(src)
 
 if (${KISSOCL_BUILD_SAMPLES})
     add_subdirectory(app)

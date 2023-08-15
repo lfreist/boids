@@ -6,41 +6,33 @@
 
 #include <SDL.h>
 #include <random>
-#include "Framework.h"
+#include <particle/Framework.h>
 #include <chrono>
 #include <iostream>
 
-#define WIDTH 1200
-#define HEIGHT 800
+#define WIDTH 701
+#define HEIGHT 301
 
 int main(int argc, char **argv) {
     SDL_SetMainReady();
 
-    BoidsSimulation simulation;
-
-    std::random_device rd;  // Used to seed the engine
-    std::mt19937 gen(rd()); // Mersenne Twister engine
-    std::uniform_int_distribution<int> get_w(50, 100); // Range from 1 to 100
-    std::uniform_int_distribution<int> get_h(50, 100); // Range from 1 to 100
-
-    for (int i = 0; i < 700; ++i) {
-        simulation.add_boid(Ball({get_w(gen), get_h(gen)}, 1, {0.5, 0.5}));
-    }
+    BoidsSimulation simulation(3000);
 
     // Creating the object by passing Height and Width value.
     Framework fw(simulation, HEIGHT, WIDTH);
 
     SDL_Event event{};
     unsigned FPS;
+    auto start = std::chrono::high_resolution_clock::now();
     while (event.type != SDL_QUIT) {
-        auto start = std::chrono::high_resolution_clock::now();
         SDL_Delay(10);
         SDL_PollEvent(&event);
-        fw.update();
-        fw.draw();
         auto end = std::chrono::high_resolution_clock::now();
-        FPS = 1000 / std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-        // std::cout << FPS << std::endl;
+        fw.update();
+      FPS = 1000 / std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+      std::cout << "FPS: " << FPS << "\r" << std::flush;
+      start = end;
+      fw.draw();
     }
 
     return 1;

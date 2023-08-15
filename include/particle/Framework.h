@@ -5,10 +5,9 @@
 #include <vector>
 #include <memory>
 
-#include "boids.h"
+#include <particle/boids.h>
 
 class Framework {
-    friend class Ball;
 public:
     // Contructor which initialize the parameters.
     Framework(BoidsSimulation& sim, int height_, int width_) : _height(height_), _width(width_), _sim(&sim) {
@@ -17,7 +16,7 @@ public:
         SDL_SetRenderDrawColor(_renderer, 0, 0, 0, 0);      // setting draw color
         SDL_RenderClear(_renderer);      // Clear the newly created window
         SDL_RenderPresent(_renderer);    // Reflects the changes done in the
-        //  window.
+        _sim->_particles.set_random_positions(10, width_- 10, 10, _height - 10);
     }
 
     // Destructor
