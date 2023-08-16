@@ -9,57 +9,46 @@
 
 #include <particle/grid.h>
 #include <particle/particle.h>
+#include <particle/simulation.h>
+#include <particle/types.h>
 
-#include <particle/utils/thread_pool.h>
+template <Dimension S>
+class BoidsSimulation : public Simulation<S> {};
 
-class BoidsSimulation {
-  friend class Framework;
+template <>
+class BoidsSimulation<Space2D> : public Simulation<Space2D> {
+  template <Dimension> friend class Framework;
 public:
-  enum class Border { REFLECTIVE, TOROIDAL, RESET };
+  explicit BoidsSimulation(size_t num_particles, Grid<Space2D> grid, uint num_threads) : Simulation<Space2D>(num_particles, grid, num_threads) {}
 
-  struct Space {
-    int top = 0;
-    int bottom = 300;
-    int left = 0;
-    int right = 700;
-
-    [[nodiscard]] int height() const { return bottom - top; }
-    int width() const { return right - left; }
-  };
-
-  BoidsSimulation(size_t num_particles)
-      : _particles(num_particles), _grid(_space.width(), _space.height(), 20),
-        _thread_pool(std::thread::hardware_concurrency()){};
-
-  void set_particles(Particles<cl_float2> particles) {
-    _particles = std::move(particles);
-  }
-  void set_particles(const Particles<cl_float2> &particles) {
-    _particles = particles;
-  }
-
-  void update() {
+  void update(Duration duration) override {
     _grid.update(_particles);
     updateBoids();
   }
+  
+  void draw(SDL_Renderer *renderer) override {
+    // _grid.draw(renderer);
+    _particles.draw(renderer);
+  }
 
+private:
   void updateBoids() {
     auto apply_boids_rules = [this](int beg, int end) {
       for (size_t i = beg; i < end; ++i) {
         cl_float2 sep = separate(i);
         cl_float2 ali = align(i);
         cl_float2 coh = cohere(i);
-
-        _particles._velocity[i].x += sep.x + ali.x + coh.x;
-        _particles._velocity[i].y += sep.y + ali.y + coh.y;
+        
+        _particles.velocity_data()[i].x += sep.x + ali.x + coh.x;
+        _particles.velocity_data()[i].y += sep.y + ali.y + coh.y;
 
         double speed =
-            std::sqrt(_particles._velocity[i].x * _particles._velocity[i].x +
-                      _particles._velocity[i].y * _particles._velocity[i].y);
+            std::sqrt(_particles.velocity_data()[i].x * _particles.velocity_data()[i].x +
+                      _particles.velocity_data()[i].y * _particles.velocity_data()[i].y);
 
         if (speed > _max_speed) {
-          _particles._velocity[i].x = (_particles._velocity[i].x / speed) * _max_speed;
-          _particles._velocity[i].y = (_particles._velocity[i].y / speed) * _max_speed;
+          _particles.velocity_data()[i].x = (_particles.velocity_data()[i].x / speed) * _max_speed;
+          _particles.velocity_data()[i].y = (_particles.velocity_data()[i].y / speed) * _max_speed;
         }
       }
     };
@@ -71,10 +60,10 @@ public:
     auto border_collision = [this, &bb](auto beg, auto end) {
       for (int i = beg; i < end; ++i) {
         switch (_border) {
-        case Border::REFLECTIVE:
+        case BORDER::REFLECTIVE:
           reflection(bb[i]);
           break;
-        case Border::TOROIDAL:
+        case BORDER::TOROIDAL:
           toroid(bb[i]);
           break;
         default:
@@ -88,11 +77,11 @@ public:
 
     auto move_boids = [this](int beg, int end) {
       for (int i = beg; i < end; ++i) {
-        _particles._position[i].x += _particles._velocity[i].x;
-        _particles._position[i].y += _particles._velocity[i].y;
-        _particles._color[i].x = (_particles._velocity[i].x / _max_speed) * 255;
-        _particles._color[i].y = (_particles._velocity[i].y / _max_speed) * 255;
-        _particles._color[i].w = 255;
+        _particles.position_data()[i].x += _particles.velocity_data()[i].x;
+        _particles.position_data()[i].y += _particles.velocity_data()[i].y;
+        _particles.color_data()[i].x = (_particles.velocity_data()[i].x / _max_speed) * 255;
+        _particles.color_data()[i].y = (_particles.velocity_data()[i].y / _max_speed) * 255;
+        _particles.color_data()[i].w = 255;
       }
     };
 
@@ -111,13 +100,13 @@ public:
         int n_y = y + dy;
         if (n_x >= 0 && n_x < _grid.x_size() && n_y >= 0 &&
             n_y < _grid.y_size()) {
-          for (size_t i : _grid._grid[n_x][n_y]) {
-            double distance = compute_dist(_particles._position[index],
-                                           _particles._position[i]);
+          for (size_t i : _grid.data()[n_x][n_y]) {
+            double distance = compute_dist(_particles.position_data()[index],
+                                           _particles.position_data()[i]);
             if (distance > 0 && distance < _separation_radius) {
               // Calculate the vector pointing away from other boids
-              double diffX = _particles._position[index].x - _particles._position[i].x;
-              double diffY = _particles._position[index].y - _particles._position[i].y;
+              double diffX = _particles.position_data()[index].x - _particles.position_data()[i].x;
+              double diffY = _particles.position_data()[index].y - _particles.position_data()[i].y;
               diffX /= distance;
               diffY /= distance;
 
@@ -144,19 +133,19 @@ public:
   cl_float2 align(size_t index) {
     cl_float2 average{0, 0};
     int count = 0;
-    int x = _particles._position[index].x / _grid.grid_size();
-    int y = _particles._position[index].y / _grid.grid_size();
+    int x = _particles.position_data()[index].x / _grid.grid_size();
+    int y = _particles.position_data()[index].y / _grid.grid_size();
     for (int dx = -1; dx <= 1; ++dx) {
       for (int dy = -1; dy <= 1; ++dy) {
         int n_x = x + dx;
         int n_y = y + dy;
         if (n_x >= 0 && n_x < _grid.x_size() && n_y >= 0 &&
             n_y < _grid.y_size()) {
-          for (size_t i : _grid._grid[n_x][n_y]) {
-            double distance = compute_dist(_particles._position[index], _particles._position[i]);
+          for (size_t i : _grid.data()[n_x][n_y]) {
+            double distance = compute_dist(_particles.position_data()[index], _particles.position_data()[i]);
             if (distance > 0 && distance < _alignment_radius) {
-              average.x += _particles._velocity[i].x;
-              average.y += _particles._velocity[i].y;
+              average.x += _particles.velocity_data()[i].x;
+              average.y += _particles.velocity_data()[i].y;
               ++count;
             }
           }
@@ -180,19 +169,19 @@ public:
     cl_float2 steer{0, 0};
     int count = 0;
 
-    int x = _particles._position[index].x / _grid.grid_size();
-    int y = _particles._position[index].y / _grid.grid_size();
+    int x = _particles.position_data()[index].x / _grid.grid_size();
+    int y = _particles.position_data()[index].y / _grid.grid_size();
     for (int dx = -1; dx <= 1; ++dx) {
       for (int dy = -1; dy <= 1; ++dy) {
         int n_x = x + dx;
         int n_y = y + dy;
         if (n_x >= 0 && n_x < _grid.x_size() && n_y >= 0 &&
             n_y < _grid.y_size()) {
-          for (size_t i : _grid._grid[n_x][n_y]) {
-            double distance = compute_dist(_particles._position[index], _particles._position[i]);
+          for (size_t i : _grid.data()[n_x][n_y]) {
+            double distance = compute_dist(_particles.position_data()[index], _particles.position_data()[i]);
             if (distance > 0 && distance < _cohesion_radius) {
-              center.x += _particles._position[i].x;
-              center.y += _particles._position[i].y;
+              center.x += _particles.position_data()[i].x;
+              center.y += _particles.position_data()[i].y;
               ++count;
             }
           }
@@ -203,8 +192,8 @@ public:
       center.x /= count;
       center.y /= count;
 
-      steer.x = center.x - _particles._position[index].x;
-      steer.y = center.y - _particles._position[index].y;
+      steer.x = center.x - _particles.position_data()[index].x;
+      steer.y = center.y - _particles.position_data()[index].y;
 
       double steerLength = std::sqrt(steer.x * steer.x + steer.y * steer.y);
       if (steerLength > 0) {
@@ -220,47 +209,33 @@ public:
     return std::sqrt(diff.x * diff.x + diff.y * diff.y);
   }
 
-  void draw(SDL_Renderer *renderer) {
-    _grid.draw(renderer);
-    _particles.draw(renderer);
-  }
-
-private:
-  void reflection(size_t index) const {
-    if ((_particles._position[index].x <= _space.left && _particles._velocity[index].x < 0) ||
-        (_particles._position[index].x >= _space.right && _particles._velocity[index].x > 0)) {
-      _particles._velocity[index].x *= -1;
+  
+  void reflection(size_t index) {
+    if ((_particles.position_data()[index].x <= _space.position.x && _particles.velocity_data()[index].x < 0) ||
+        (_particles.position_data()[index].x >= _space.position.x + _space.width() && _particles.velocity_data()[index].x > 0)) {
+      _particles.velocity_data()[index].x *= -1;
     }
-    if ((_particles._position[index].y <= _space.top && _particles._velocity[index].y < 0) ||
-        (_particles._position[index].y >= _space.bottom && _particles._velocity[index].y > 0)) {
-      _particles._velocity[index].y *= -1;
+    if ((_particles.position_data()[index].y <= _space.position.y && _particles.velocity_data()[index].y < 0) ||
+        (_particles.position_data()[index].y >= _space.position.y + _space.height() && _particles.velocity_data()[index].y > 0)) {
+      _particles.velocity_data()[index].y *= -1;
     }
   }
 
-  void toroid(size_t index) const {
-    if (_particles._position[index].x <= _space.left && _particles._velocity[index].x < 0) {
-      _particles._position[index].x = _space.right;
-    } else if (_particles._position[index].x >= _space.right && _particles._velocity[index].x > 0) {
-      _particles._position[index].x = _space.left;
+  void toroid(size_t index) {
+    if (_particles.position_data()[index].x <= _space.position.x && _particles.velocity_data()[index].x < 0) {
+      _particles.position_data()[index].x = _space.position.x;
+    } else if (_particles.position_data()[index].x >= _space.position.x + _space.width() && _particles.velocity_data()[index].x > 0) {
+      _particles.position_data()[index].x = _space.position.x + _space.width();
     }
-    if (_particles._position[index].y <= _space.top && _particles._velocity[index].y < 0) {
-      _particles._position[index].y = _space.bottom;
-    } else if (_particles._position[index].y >= _space.bottom && _particles._velocity[index].y > 0) {
-      _particles._position[index].y = _space.top;
+    if (_particles.position_data()[index].y <= _space.position.y && _particles.velocity_data()[index].y < 0) {
+      _particles.position_data()[index].y = _space.position.y + _space.height();
+    } else if (_particles.position_data()[index].y >= _space.position.y + _space.height() && _particles.velocity_data()[index].y > 0) {
+      _particles.position_data()[index].y = _space.position.y;
     }
   }
-
-  Particles<cl_float2> _particles;
 
   float _separation_radius{10};
   float _alignment_radius{30};
   float _cohesion_radius{30};
-  float _max_speed{10};
-
-  Space _space{};
-  Border _border{Border::REFLECTIVE};
-
-  Grid<cl_float2> _grid;
-
-  BS::thread_pool _thread_pool;
+  float _max_speed{7};
 };

@@ -1,20 +1,15 @@
 #pragma once
 
-#include <particle/ocl/types.h>
+#include <particle/types.h>
 
 #include <cmath>
 
-template <typename T>
-concept CL_VALID_TYPE =
-    std::is_same_v<T, cl_float2> || std::is_same_v<T, cl_float3> ||
-    std::is_same_v<T, cl_float4>;
-
-template <CL_VALID_TYPE T> class Particles {
-  friend class BoidsSimulation;
-  template <CL_VALID_TYPE>
-  friend class Grid;
+template <Dimension T> class Particles {
+  template <Dimension> friend class BoidsSimulation;
+  template <Dimension> friend class Grid;
 
 public:
+  Particles() = default;
   explicit Particles(size_t size)
       : _size(size), _position(new T[size]), _velocity(new T[size]),
         _color(new cl_int3[size]) {}
@@ -162,8 +157,11 @@ public:
   }
 
   T *position_data() { return _position; }
+  const T *position_data() const { return _position; }
   T *velocity_data() { return _velocity; }
+  const T *velocity_data() const { return _velocity; }
   cl_int4 *color_data() { return _color; }
+  [[nodiscard]] const cl_int4 *color_data() const { return _color; }
 
   void draw(SDL_Renderer *renderer) const {
     for (int i = 0; i < _size; ++i) {
@@ -176,11 +174,11 @@ public:
   [[nodiscard]] size_t size() const { return _size; }
 
 private:
-  size_t _size;
+  size_t _size{0};
 
-  T *_position;
-  T *_velocity;
-  cl_int4 *_color;
+  T *_position{nullptr};
+  T *_velocity{nullptr};
+  cl_int4 *_color{nullptr};
 
   bool _position_owned{true};
   bool _velocity_owned{true};
