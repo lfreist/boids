@@ -26,7 +26,7 @@ public:
         SDL_Quit();
     }
 
-    void update(Duration duration = Duration(1)) {
+    void update(Duration duration) {
         _sim->update(duration);
     }
 

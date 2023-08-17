@@ -23,7 +23,7 @@ public:
 
   void update(Duration duration) override {
     _grid.update(_particles);
-    updateBoids();
+    updateBoids(duration);
   }
   
   void draw(SDL_Renderer *renderer) override {
@@ -32,7 +32,7 @@ public:
   }
 
 private:
-  void updateBoids() {
+  void updateBoids(Duration duration) {
     auto apply_boids_rules = [this](int beg, int end) {
       for (size_t i = beg; i < end; ++i) {
         cl_float2 sep = separate(i);
@@ -75,12 +75,13 @@ private:
     _thread_pool.push_loop(bb.size(), border_collision);
     _thread_pool.wait_for_tasks();
 
-    auto move_boids = [this](int beg, int end) {
+    auto move_boids = [this, &duration](int beg, int end) {
       for (int i = beg; i < end; ++i) {
-        _particles.position_data()[i].x += _particles.velocity_data()[i].x;
-        _particles.position_data()[i].y += _particles.velocity_data()[i].y;
-        _particles.color_data()[i].x = (_particles.velocity_data()[i].x / _max_speed) * 255;
-        _particles.color_data()[i].y = (_particles.velocity_data()[i].y / _max_speed) * 255;
+        _particles.position_data()[i].x += _particles.velocity_data()[i].x * duration.count();
+        _particles.position_data()[i].y += _particles.velocity_data()[i].y * duration.count();
+        _particles.color_data()[i].x = 255; // (_particles.velocity_data()[i].x / _max_speed) * 255;
+        _particles.color_data()[i].y = 255; // (_particles.velocity_data()[i].y / _max_speed) * 255;
+        _particles.color_data()[i].z = 255;
         _particles.color_data()[i].w = 255;
       }
     };
@@ -237,5 +238,5 @@ private:
   float _separation_radius{10};
   float _alignment_radius{30};
   float _cohesion_radius{30};
-  float _max_speed{7};
+  float _max_speed{100};
 };
